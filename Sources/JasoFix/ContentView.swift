@@ -56,9 +56,19 @@ struct ContentView: View {
             Text("자동 실행 기록: ~/Library/Logs/JasoFix.log")
                 .font(.caption)
                 .foregroundColor(.secondary)
+
+            Text("JasoFix \(appVersion) · © 2026 서중호 · MIT License")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 4)
         }
         .padding(20)
         .frame(width: 480)
+    }
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
     }
 
     private func addFolders() {
