@@ -5,6 +5,9 @@ if CommandLine.arguments.contains("--background-run") {
     let folders = UserDefaults.standard.stringArray(forKey: "folders") ?? []
     if !folders.isEmpty {
         let result = NormalizeEngine.run(on: folders)
+        if result.updatedRoots != folders {
+            UserDefaults.standard.set(result.updatedRoots, forKey: "folders")
+        }
         if result.renamed > 0 || result.failed > 0 {
             Log.write("자동 실행: 변환 \(result.renamed)건, 실패 \(result.failed)건")
         }

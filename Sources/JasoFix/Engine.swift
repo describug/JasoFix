@@ -10,6 +10,8 @@ enum NormalizeEngine {
     struct Result {
         var renamed = 0
         var failed = 0
+        /// 대상 폴더 자체가 rename된 경우를 반영한 새 경로 목록 (설정 갱신용)
+        var updatedRoots: [String] = []
     }
 
     /// Swift의 String ==는 유니코드 정준 동등성 비교라 NFD == NFC가 true가 된다.
@@ -22,8 +24,37 @@ enum NormalizeEngine {
         var result = Result()
         for root in roots {
             runSingle(root: root, result: &result)
+            result.updatedRoots.append(normalizeRoot(root, result: &result))
         }
         return result
+    }
+
+    /// 대상 폴더 자체의 이름도 NFC로 바꾸고, 바뀐 경우 새 경로를 돌려준다.
+    private static func normalizeRoot(_ root: String, result: inout Result) -> String {
+        let parent = (root as NSString).deletingLastPathComponent
+        let want = (root as NSString).lastPathComponent
+        guard !parent.isEmpty, parent != root else { return root }
+
+        // 설정에 저장된 경로와 디스크의 실제 저장 형태(NFD/NFC)가 다를 수 있으므로
+        // 부모 폴더 목록에서 실제 항목을 찾는다. Swift String ==는 정준 동등 비교라
+        // 형태가 달라도 매칭된다.
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: parent)) ?? []
+        guard let actual = entries.first(where: { $0 == want }) else { return root }
+        guard needsNormalize(actual) else { return parent + "/" + actual }
+
+        let source = parent + "/" + actual
+        let dest = parent + "/" + actual.precomposedStringWithCanonicalMapping
+        let ok = source.withCString { src in
+            dest.withCString { dst in
+                rename(src, dst) == 0
+            }
+        }
+        if ok {
+            result.renamed += 1
+            return dest
+        }
+        result.failed += 1
+        return root
     }
 
     private static func runSingle(root: String, result: inout Result) {

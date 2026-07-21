@@ -85,6 +85,10 @@ struct ContentView: View {
             let result = NormalizeEngine.run(on: folders)
             Log.write("수동 실행: 변환 \(result.renamed)건, 실패 \(result.failed)건")
             DispatchQueue.main.async {
+                // 대상 폴더 자체가 rename됐으면 설정 경로도 갱신한다.
+                if result.updatedRoots != settings.folders {
+                    settings.folders = result.updatedRoots
+                }
                 running = false
                 var message = "완료 — 변환 \(result.renamed)건"
                 if result.failed > 0 { message += ", 실패 \(result.failed)건" }
