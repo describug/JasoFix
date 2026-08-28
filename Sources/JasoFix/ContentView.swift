@@ -57,7 +57,7 @@ struct ContentView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            Text("JasoFix \(appVersion) · © 2026 서중호 · MIT License")
+            Text("JasoFix \(appVersion) · © 2026 describug · MIT License")
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
