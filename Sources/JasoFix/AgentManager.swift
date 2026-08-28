@@ -5,7 +5,7 @@ import Foundation
 /// 백그라운드 자동 실행이 켜져 있으면 ~/Library/LaunchAgents에 plist를 써서
 /// 설정된 주기마다 `JasoFix --background-run`이 실행되도록 등록한다.
 enum AgentManager {
-    static let label = "com.seojungho.jasofix"
+    static let label = "dev.describug.jasofix"
 
     static var plistPath: String {
         NSString(string: "~/Library/LaunchAgents/\(label).plist").expandingTildeInPath
