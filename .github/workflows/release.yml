@@ -38,7 +38,7 @@ jobs:
           #   github.com/describug/JasoFix/releases/latest/download/JasoFix.zip
           files: JasoFix.zip
           body: |
-            macOS 13 이상 · Apple Silicon / Intel
+            macOS 13 이상 · Apple Silicon(M1 이상) 전용 — Intel 맥에서는 실행되지 않습니다
 
             서명·공증이 없어 첫 실행이 막힙니다.
             시스템 설정 ▸ 개인정보 보호 및 보안 ▸ "그래도 열기" 를 한 번 눌러주세요.

@@ -10,9 +10,30 @@ struct ContentView: View {
     @State private var showUpdateAlert = false
     @State private var updating = false
     @State private var updateError: String?
+    @State private var unreadableAlert: String?
+    @State private var backgroundIssue = UserDefaults.standard.string(forKey: "lastBackgroundIssue")
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if let backgroundIssue {
+                HStack(alignment: .top) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(backgroundIssue).font(.caption)
+                        Text(Self.permissionHint).font(.caption2).foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Button("확인") {
+                        UserDefaults.standard.removeObject(forKey: "lastBackgroundIssue")
+                        self.backgroundIssue = nil
+                    }
+                    .controlSize(.small)
+                }
+                .padding(8)
+                .background(Color.orange.opacity(0.12))
+                .cornerRadius(6)
+            }
+
             Text("대상 폴더").font(.headline)
             List(selection: $selection) {
                 ForEach(settings.folders, id: \.self) { folder in
@@ -87,6 +108,7 @@ struct ContentView: View {
         .padding(20)
         .frame(width: 480)
         .task {
+            Updater.removeLeftovers()
             if let found = await Updater.checkForUpdate() {
                 update = found
                 showUpdateAlert = true
@@ -98,6 +120,14 @@ struct ContentView: View {
         } message: {
             Text("지금 받아서 설치하고 JasoFix를 다시 실행합니다. (현재 \(appVersion))")
         }
+        .alert("읽지 못한 폴더가 있습니다", isPresented: Binding(
+            get: { unreadableAlert != nil },
+            set: { if !$0 { unreadableAlert = nil } }
+        )) {
+            Button("닫기", role: .cancel) {}
+        } message: {
+            Text((unreadableAlert ?? "") + "\n\n" + Self.permissionHint)
+        }
         .alert("업데이트 실패", isPresented: Binding(
             get: { updateError != nil },
             set: { if !$0 { updateError = nil } }
@@ -108,6 +138,9 @@ struct ContentView: View {
             Text(updateError ?? "")
         }
     }
+
+    static let permissionHint = "그 안의 파일은 변환되지 않았습니다. 시스템 설정 ▸ 개인정보 보호 및 보안 ▸ "
+        + "파일 및 폴더(또는 전체 디스크 접근 권한)에서 JasoFix를 허용한 뒤 다시 실행해 주세요."
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
@@ -148,7 +181,7 @@ struct ContentView: View {
         let label = folders.count == settings.folders.count ? "전체" : "선택 \(folders.count)개"
         DispatchQueue.global(qos: .userInitiated).async {
             let result = NormalizeEngine.run(on: folders)
-            Log.write("수동 실행(\(label)): 변환 \(result.renamed)건, 실패 \(result.failed)건")
+            Log.write("수동 실행(\(label)): \(result.summary)" + Log.unreadableDetail(result.unreadable))
             DispatchQueue.main.async {
                 // 대상 폴더 자체가 rename됐으면 설정 경로와 선택도 갱신한다.
                 // updatedRoots는 입력 folders와 같은 순서다. String !=는 NFD/NFC를
@@ -162,7 +195,12 @@ struct ContentView: View {
                 running = false
                 var message = "완료(\(label)) — 변환 \(result.renamed)건"
                 if result.failed > 0 { message += ", 실패 \(result.failed)건" }
+                if !result.unreadable.isEmpty { message += ", 읽지 못한 폴더 \(result.unreadable.count)개" }
                 lastMessage = message
+                if !result.unreadable.isEmpty {
+                    unreadableAlert = Log.unreadableDetail(result.unreadable)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
             }
         }
     }

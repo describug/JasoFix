@@ -17,12 +17,14 @@ rm -rf /Applications/JasoFix.app && cp -R build/JasoFix.app /Applications/
 
 - `Sources/JasoFix/main.swift` — 진입점. `--background-run` 인자가 있으면 UI 없이 변환만 하고 종료 (launchd용)
 - `Engine.swift` — 변환 엔진. 하위 항목부터(깊은 것 먼저) rename, 마지막에 선택 폴더 자체도 rename
-- `Settings.swift` — UserDefaults(`dev.describug.jasofix`) 기반. 키: `folders`, `backgroundEnabled`, `intervalMinutes`
+- `Settings.swift` — UserDefaults(`dev.describug.jasofix`) 기반. 키: `folders`, `backgroundEnabled`, `intervalMinutes`, `lastBackgroundIssue`(자동 실행에서 생긴 실패·읽지 못한 폴더 — 다음에 설정 창을 열면 주황 안내로 보여주고 「확인」으로 지움)
 - `AgentManager.swift` — LaunchAgent `dev.describug.jasofix` 등록/해제 (토글·주기 변경 시 자동 반영)
 - `ContentView.swift` — SwiftUI 설정 창
 - `Updater.swift` — 자동 업데이트. 설정 창을 열 때 GitHub 최신 릴리스(`tag_name`, `JasoFix.zip`)와 버전을 비교해 알림 → 받아서 ditto로 풀고 번들 ID·버전·서명 확인 → 지금 앱 자리에 바꿔 끼운 뒤 재실행. 백그라운드 실행(`--background-run`)에서는 확인하지 않음
 
 ## 반드시 알아야 할 함정 (버그 원인 1순위)
+
+- `FileManager.enumerator(atPath:)`는 열 수 없는 폴더(권한·TCC)를 **오류 없이 건너뛴다**. 그래서 엔진이 `opendir`로 직접 열어 보고 `unreadable`에 모은다 — 이걸 빼면 권한을 잃어도 "변환 0건"으로만 남는 조용한 실패가 된다
 
 - Swift의 `String ==`는 유니코드 정준 동등 비교라서 **NFD 문자열 == NFC 문자열이 true**다. 저장 형태 비교는 반드시 UTF-8 바이트로 (`NormalizeEngine.needsNormalize` 참고)
 - `FileManager`의 `fileSystemRepresentation`은 경로를 다시 NFD로 되돌려버린다. 실제 rename은 `withCString` + POSIX `rename()` 사용

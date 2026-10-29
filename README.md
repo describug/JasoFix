@@ -24,7 +24,7 @@ Xcode 프로젝트 없이 스크립트 하나로 빌드합니다. (Xcode Command
 cp -R build/JasoFix.app /Applications/
 ```
 
-macOS 13(Ventura) 이상.
+macOS 13(Ventura) 이상, Apple Silicon(M1 이상) 맥 전용. Intel 맥은 지원하지 않습니다.
 
 ## 동작 원리
 

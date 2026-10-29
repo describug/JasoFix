@@ -8,8 +8,15 @@ if CommandLine.arguments.contains("--background-run") {
         if result.updatedRoots != folders {
             UserDefaults.standard.set(result.updatedRoots, forKey: "folders")
         }
-        if result.renamed > 0 || result.failed > 0 {
-            Log.write("자동 실행: 변환 \(result.renamed)건, 실패 \(result.failed)건")
+        if result.renamed > 0 || result.failed > 0 || !result.unreadable.isEmpty {
+            Log.write("자동 실행: \(result.summary)" + Log.unreadableDetail(result.unreadable))
+        }
+        // 화면이 없으니 문제는 남겨 두었다가 다음에 설정 창을 열 때 보여준다
+        if result.failed > 0 || !result.unreadable.isEmpty {
+            UserDefaults.standard.set(
+                "\(Log.timestamp()) 자동 실행 — \(result.summary)" + Log.unreadableDetail(result.unreadable),
+                forKey: "lastBackgroundIssue"
+            )
         }
     }
     exit(0)

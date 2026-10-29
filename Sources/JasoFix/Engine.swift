@@ -10,8 +10,17 @@ enum NormalizeEngine {
     struct Result {
         var renamed = 0
         var failed = 0
+        /// 권한 등으로 열지 못해 건너뛴 폴더. 그 안의 파일은 변환되지 않았다.
+        var unreadable: [String] = []
         /// 대상 폴더 자체가 rename된 경우를 반영한 새 경로 목록 (설정 갱신용)
         var updatedRoots: [String] = []
+
+        /// "변환 3건, 실패 1건, 읽지 못한 폴더 2개" 형태의 요약
+        var summary: String {
+            var text = "변환 \(renamed)건, 실패 \(failed)건"
+            if !unreadable.isEmpty { text += ", 읽지 못한 폴더 \(unreadable.count)개" }
+            return text
+        }
     }
 
     /// Swift의 String ==는 유니코드 정준 동등성 비교라 NFD == NFC가 true가 된다.
@@ -57,13 +66,28 @@ enum NormalizeEngine {
         return root
     }
 
+    /// 폴더를 실제로 열어 본다. 권한(TCC 포함)이 없으면 열리지 않는다.
+    /// FileManager 의 열거자는 못 여는 폴더를 오류 없이 건너뛰므로 직접 확인해야 한다.
+    private static func canOpen(_ path: String) -> Bool {
+        guard let dir = opendir(path) else { return false }
+        closedir(dir)
+        return true
+    }
+
     private static func runSingle(root: String, result: inout Result) {
         let fm = FileManager.default
-        guard let enumerator = fm.enumerator(atPath: root) else { return }
+        guard canOpen(root), let enumerator = fm.enumerator(atPath: root) else {
+            result.unreadable.append(root)
+            return
+        }
 
         var relPaths: [String] = []
         while let rel = enumerator.nextObject() as? String {
             relPaths.append(rel)
+            if enumerator.fileAttributes?[.type] as? FileAttributeType == .typeDirectory,
+               !canOpen(root + "/" + rel) {
+                result.unreadable.append(root + "/" + rel)
+            }
         }
         // 하위 항목부터 처리해야 상위 폴더를 rename해도 경로가 꼬이지 않는다.
         relPaths.sort {
@@ -93,10 +117,22 @@ enum NormalizeEngine {
 enum Log {
     static let path = NSString(string: "~/Library/Logs/JasoFix.log").expandingTildeInPath
 
-    static func write(_ message: String) {
+    static func timestamp() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        let line = "\(formatter.string(from: Date())) \(message)\n"
+        return formatter.string(from: Date())
+    }
+
+    /// 읽지 못한 폴더 목록을 로그·안내용으로 덧붙인다 (많으면 앞의 3개만)
+    static func unreadableDetail(_ folders: [String]) -> String {
+        guard !folders.isEmpty else { return "" }
+        var text = "\n  읽지 못한 폴더: " + folders.prefix(3).joined(separator: ", ")
+        if folders.count > 3 { text += " 외 \(folders.count - 3)개" }
+        return text
+    }
+
+    static func write(_ message: String) {
+        let line = "\(timestamp()) \(message)\n"
         guard let data = line.data(using: .utf8) else { return }
         if let handle = FileHandle(forWritingAtPath: path) {
             handle.seekToEndOfFile()

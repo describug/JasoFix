@@ -63,6 +63,18 @@ enum Updater {
         return false
     }
 
+    private static let workPrefix = "JasoFix-update-"
+
+    /// 지난 업데이트가 남긴 작업 폴더를 지운다. 1.3.0 은 이 폴더를 지우지 않아
+    /// 옛 앱(old.app)과 zip 이 회당 약 0.8MB씩 쌓였다. 설정 창을 열 때 부른다.
+    static func removeLeftovers() {
+        let temp = FileManager.default.temporaryDirectory
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: temp.path)) ?? []
+        for name in names where name.hasPrefix(workPrefix) {
+            try? FileManager.default.removeItem(at: temp.appendingPathComponent(name))
+        }
+    }
+
     /// 새 버전을 받아 지금 앱 자리에 바꿔 끼운다. 성공하면 재실행 예약 후 앱을 종료한다.
     static func install(_ release: Release) async throws {
         let appURL = Bundle.main.bundleURL
@@ -71,9 +83,22 @@ enum Updater {
         }
 
         let work = FileManager.default.temporaryDirectory
-            .appendingPathComponent("JasoFix-update-\(UUID().uuidString)")
+            .appendingPathComponent(workPrefix + UUID().uuidString)
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+        do {
+            try await replaceApp(at: appURL, with: release, work: work)
+        } catch {
+            // 옛 앱을 제자리로 못 돌려놓은 경우엔 작업 폴더(old.app)가 유일한 사본이라 남긴다
+            if FileManager.default.fileExists(atPath: appURL.path) {
+                try? FileManager.default.removeItem(at: work)
+            }
+            throw error
+        }
+        // 옛 앱(old.app)은 지금 실행 중인 파일이라 종료 뒤에 지운다
+        relaunch(appURL, removing: work)
+    }
 
+    private static func replaceApp(at appURL: URL, with release: Release, work: URL) async throws {
         let (downloaded, response) = try await URLSession.shared.download(from: release.zipURL)
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
             throw UpdateError.message("다운로드 실패 (HTTP \(http.statusCode))")
@@ -110,18 +135,16 @@ enum Updater {
             try? FileManager.default.moveItem(at: backup, to: appURL)
             throw UpdateError.message("새 앱을 설치하지 못했습니다.")
         }
-
-        relaunch(appURL)
     }
 
-    /// 이 프로세스가 끝나기를 기다렸다가 새 앱을 여는 셸을 띄우고 종료한다.
+    /// 이 프로세스가 끝나기를 기다렸다가 작업 폴더를 지우고 새 앱을 여는 셸을 띄운 뒤 종료한다.
     /// (살아 있는 동안 open 하면 같은 앱이라 기존 창만 앞으로 온다)
-    private static func relaunch(_ appURL: URL) {
+    private static func relaunch(_ appURL: URL, removing work: URL) {
         let pid = ProcessInfo.processInfo.processIdentifier
-        let script = "while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done; open \"$0\""
+        let script = "while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done; rm -rf \"$1\"; open \"$0\""
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", script, appURL.path]
+        process.arguments = ["-c", script, appURL.path, work.path]
         try? process.run()
         DispatchQueue.main.async { NSApp.terminate(nil) }
     }
