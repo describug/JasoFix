@@ -30,7 +30,7 @@ rm -rf /Applications/JasoFix.app && cp -R build/JasoFix.app /Applications/
 
 ## 배포
 
-- GitHub: `describug` 계정 public 저장소. **push는 사용자가 GitHub Desktop에서 직접** (Claude는 자격 증명 접근 불가). 커밋까지 해두고 "GitHub Desktop에서 Push origin 눌러주세요"라고 안내할 것
+- GitHub: `describug` 계정 public 저장소. 이 맥은 `gh`로 `describug` 로그인돼 있어 **Claude가 직접 push 가능** — 단, 공개 배포라 사용자 확인을 받은 뒤 push (`git push origin main --follow-tags`)
 
 - 릴리스는 `v1.3.0` 같은 태그를 push하면 GitHub Actions가 만든다. **태그 버전과 Info.plist 버전이 같아야** 자동 업데이트가 받는다 (다르면 "올바른 JasoFix가 아닙니다"로 거부)
 
