@@ -28,7 +28,7 @@ struct ContentView: View {
 
             HStack(spacing: 12) {
                 Button(action: { run(settings.folders) }) {
-                    Text("전체 폴더 실행").frame(minWidth: 110)
+                    Text("대상 폴더 실행").frame(minWidth: 110)
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(running || settings.folders.isEmpty)
