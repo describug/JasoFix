@@ -27,11 +27,16 @@ struct ContentView: View {
             Divider()
 
             HStack(spacing: 12) {
-                Button(action: runNow) {
-                    Text("지금 바로 실행").frame(minWidth: 110)
+                Button(action: { run(settings.folders) }) {
+                    Text("전체 폴더 실행").frame(minWidth: 110)
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(running || settings.folders.isEmpty)
+
+                Button(action: { run(settings.folders.filter { selection.contains($0) }) }) {
+                    Text("선택 폴더만 실행").frame(minWidth: 110)
+                }
+                .disabled(running || selection.isEmpty)
 
                 if running {
                     ProgressView().controlSize(.small)
@@ -88,19 +93,24 @@ struct ContentView: View {
         selection.removeAll()
     }
 
-    private func runNow() {
+    private func run(_ folders: [String]) {
         running = true
-        let folders = settings.folders
+        let label = folders.count == settings.folders.count ? "전체" : "선택 \(folders.count)개"
         DispatchQueue.global(qos: .userInitiated).async {
             let result = NormalizeEngine.run(on: folders)
-            Log.write("수동 실행: 변환 \(result.renamed)건, 실패 \(result.failed)건")
+            Log.write("수동 실행(\(label)): 변환 \(result.renamed)건, 실패 \(result.failed)건")
             DispatchQueue.main.async {
-                // 대상 폴더 자체가 rename됐으면 설정 경로도 갱신한다.
-                if result.updatedRoots != settings.folders {
-                    settings.folders = result.updatedRoots
+                // 대상 폴더 자체가 rename됐으면 설정 경로와 선택도 갱신한다.
+                // updatedRoots는 입력 folders와 같은 순서다. String !=는 NFD/NFC를
+                // 같다고 보므로 바이트로 비교한다.
+                let renamed = Dictionary(uniqueKeysWithValues: zip(folders, result.updatedRoots))
+                    .filter { Array($0.key.utf8) != Array($0.value.utf8) }
+                if !renamed.isEmpty {
+                    settings.folders = settings.folders.map { renamed[$0] ?? $0 }
+                    selection = Set(selection.map { renamed[$0] ?? $0 })
                 }
                 running = false
-                var message = "완료 — 변환 \(result.renamed)건"
+                var message = "완료(\(label)) — 변환 \(result.renamed)건"
                 if result.failed > 0 { message += ", 실패 \(result.failed)건" }
                 lastMessage = message
             }
