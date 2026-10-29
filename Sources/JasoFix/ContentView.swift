@@ -6,6 +6,10 @@ struct ContentView: View {
     @State private var selection = Set<String>()
     @State private var running = false
     @State private var lastMessage = ""
+    @State private var update: Updater.Release?
+    @State private var showUpdateAlert = false
+    @State private var updating = false
+    @State private var updateError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -62,6 +66,18 @@ struct ContentView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
+            if updating {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("업데이트 받는 중…").font(.caption).foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+            } else if let update {
+                Button("새 버전 \(update.version) 업데이트") { install(update) }
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+
             Text("JasoFix \(appVersion) · © 2026 describug · MIT License")
                 .font(.caption2)
                 .foregroundColor(.secondary)
@@ -70,10 +86,44 @@ struct ContentView: View {
         }
         .padding(20)
         .frame(width: 480)
+        .task {
+            if let found = await Updater.checkForUpdate() {
+                update = found
+                showUpdateAlert = true
+            }
+        }
+        .alert("새 버전 \(update?.version ?? "")이 있습니다", isPresented: $showUpdateAlert) {
+            Button("업데이트") { if let update { install(update) } }
+            Button("나중에", role: .cancel) {}
+        } message: {
+            Text("지금 받아서 설치하고 JasoFix를 다시 실행합니다. (현재 \(appVersion))")
+        }
+        .alert("업데이트 실패", isPresented: Binding(
+            get: { updateError != nil },
+            set: { if !$0 { updateError = nil } }
+        )) {
+            Button("다운로드 페이지 열기") { NSWorkspace.shared.open(Updater.releasesPage) }
+            Button("닫기", role: .cancel) {}
+        } message: {
+            Text(updateError ?? "")
+        }
     }
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+    }
+
+    private func install(_ release: Updater.Release) {
+        updating = true
+        Task {
+            do {
+                try await Updater.install(release)
+            } catch {
+                updating = false
+                updateError = error.localizedDescription
+                Log.write("업데이트 실패: \(error.localizedDescription)")
+            }
+        }
     }
 
     private func addFolders() {
